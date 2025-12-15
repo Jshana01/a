@@ -6,6 +6,8 @@ import random
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 import pandas as pd
+from matplotlib.offsetbox import OffsetImage, AnnotationBbox
+
 
 class ParkingGrid:
     def __init__(self, size=10, start=(0,0), parking_spots=[(9,9)],
@@ -758,73 +760,115 @@ def render_grid(env, path, title_color="black"):
         "trolley_road":   "#FFF9C4",  # Light Yellow
     }
 
+    icon_map = {
+        "bush":           ("🌻", "white", 10),      # Green flower logo
+        "oku":            ("♿", "white", 10),      # Blue wheelchair logo
+        "wall":           ("WALL", "white", 5),     # Word "WALL"
+        "guard_house":    ("👮", "white", 12),      # Guard logo
+        "ticket_machine": ("🎫", "white", 10),      # Ticket logo
+        "lift":           ("🛗", "white", 10),      # Lift logo
+        "construction":   ("💧", "blue", 10),       # User asked for Water logo here
+        "ramp":           ("RAMP", "white", 5),     # Word "RAMP"
+        "water_leak":     ("💧", "cyan", 10),       # Water logo
+        "cone":           ("⚠️", "white", 10),       # Cone logo (Warning sign)
+        "parked_car":     ("🚘", "black", 10),      # Car logo for obstacles
+        "trolley_road":   ("🛒", "black", 6),       # Trolley logo
+    }
+
     # 5. DRAW VISUAL OBJECTS (With Black Edges)
     if hasattr(env, "visual_objects"):
         for obj_type, coords in env.visual_objects.items():
-            color = palette.get(obj_type, "#9E9E9E") 
-            alpha = 0.6 if obj_type == "parking_slots" else 1.0
+            # A. Draw Background Block
+            color = palette.get(obj_type, "#EEEEEE")
+            # Special case: Make parking slots transparent/light
+            alpha = 0.5 if obj_type == "parking_slots" else 1.0
             
             for r, c in coords:
                 x, y = transform(r, c)
+                
+                # Draw colored rectangle (base)
                 rect = plt.Rectangle((x - 0.5, y - 0.5), 1, 1, 
-                                     facecolor=color, 
-                                     edgecolor="none",   # <--- No Border
-                                     linewidth=0)
+                                     facecolor=color, alpha=alpha,
+                                     edgecolor="none", linewidth=0)
                 ax.add_patch(rect)
+
+                # B. Draw Icon/Logo (Overlay)
+                if obj_type in icon_map:
+                    symbol, txt_color, f_size = icon_map[obj_type]
+                    # Center the text/icon in the grid cell
+                    ax.text(x, y, symbol, 
+                            ha='center', va='center', 
+                            fontsize=f_size, color=txt_color, 
+                            fontweight='bold', zorder=2)
 
     # 6. Draw Moving Humans
     if hasattr(env, "moving_humans"):
         for h in env.moving_humans:
             hr, hc = h["pos"]
             hx, hy = transform(hr, hc)
-            ax.add_patch(plt.Circle((hx, hy), 0.35, color=palette["human"], zorder=4))
+            # Draw Human Icon
+            ax.text(hx, hy, "🚶", ha='center', va='center', fontsize=12, zorder=6)
 
-    # 7. Draw Goal (Star)
+    # 7. Draw Goals (Stars)
     if hasattr(env, 'parking_spots'):
         for gr, gc in env.parking_spots:
             gx, gy = transform(gr, gc)
-            ax.plot(gx, gy, marker='*', color='#D50000', markersize=18, 
-                    markeredgecolor='black', markeredgewidth=1.0, zorder=5)
+            ax.plot(gx, gy, marker='*', color='#D50000', markersize=14, 
+                    markeredgecolor='white', markeredgewidth=0.5, zorder=5)
 
     # 8. Draw Path
     if len(path) > 1:
         raw_coords = [p[:2] for p in path]
         plot_coords = [transform(r, c) for r, c in raw_coords]
         path_x, path_y = zip(*plot_coords)
-        ax.plot(path_x, path_y, color=title_color, linewidth=2.5, 
-                alpha=0.8, marker='.', markersize=5, zorder=6)
+        ax.plot(path_x, path_y, color=title_color, linewidth=2, 
+                alpha=0.7, marker='.', markersize=4, zorder=6)
 
-    # 9. Draw Agent
+    # 9. Draw Agent (Car Logo) 
+    # agent grid position (row, col)
     ar, ac = env.state
+
+    # convert grid coord -> plot coord
     ax_p, ay_p = transform(ar, ac)
-    
+
+    # draw the car icon
+    img = plt.imread("b.png")
+    imagebox = OffsetImage(img, zoom=0.025)
+    ab = AnnotationBbox(imagebox, (ax_p, ay_p), frameon=False)
+    ax.add_artist(ab)
+
     # Start Position
     if hasattr(env, "start"):
         sr, sc = env.start
         sx, sy = transform(sr, sc)
-        ax.plot(sx, sy, marker='s', color='#2979FF', markersize=10, 
-                markeredgecolor='black', zorder=5)
-    
-    # Current Agent
-    ax.add_patch(plt.Circle((ax_p, ay_p), 0.4, color=title_color, zorder=10, ec='white'))
+        ax.text(sx, sy, "S", ha='center', va='center', color="white", fontweight='bold', zorder=5)
+        ax.add_patch(plt.Circle((sx, sy), 0.4, color='green', alpha=0.3, zorder=4))
 
-    # 10. Grid Settings (Ensure grid lines match the blocks)
+    # Current Agent (The Car)
+    # 0=Up, 1=Down, 2=Left, 3=Right
+    direction = env.prev_action if hasattr(env, "prev_action") else 4
+    
+    # Rotate car icon based on direction (using arrows or just a static car)
+    # Since we can't easily rotate emoji text, we use a generic Front-Facing Car
+    ax.text(ax_p, ay_p, "🏎️", ha='center', va='center', fontsize=16, zorder=10)
+
+    # 10. Grid Lines
     ax.set_xlim(-0.5, cols - 0.5)
     ax.set_ylim(-0.5, rows - 0.5)
     ax.set_aspect('equal')
     
-    # Draw the grid lines explicitly for empty spaces too
     ax.set_xticks(np.arange(-0.5, cols, 1))
     ax.set_yticks(np.arange(-0.5, rows, 1))
-    ax.grid(which='major', color='black', linestyle='-', linewidth=0.5, alpha=0.3)
+    ax.grid(which='major', color='black', linestyle='-', linewidth=0.5, alpha=0.1)
     ax.set_xticklabels([])
     ax.set_yticklabels([])
-    ax.tick_params(axis='both', which='both', length=0) 
+    ax.tick_params(axis='both', which='both', length=0)
 
     return fig
     
 # --- LEGEND DISPLAY FUNCTION ---
 def display_color_legend_python():
+    # Define data matching the render_grid palette
     legend_data = [
         {"Object": "Wall",            "Color": "#000000"},
         {"Object": "Bush",            "Color": "#2E7D32"},
@@ -842,17 +886,16 @@ def display_color_legend_python():
         {"Object": "Trolley Road",    "Color": "#FFF9C4"},
     ]
 
+    # Create DataFrame
     df = pd.DataFrame(legend_data)
 
-    # Style function to color the background of the 'Color' column
     def color_background(val):
         return f'background-color: {val}; color: {val};'
 
     # Apply style
     styled_df = df.style.map(color_background, subset=['Color'])
 
-    # Display in Sidebar
-    st.sidebar.table(styled_df)
+    st.sidebar.dataframe(styled_df, hide_index=True, use_container_width=True)
     
 # ==========================================
 # 4. STREAMLIT APP LAYOUT
@@ -928,12 +971,14 @@ if 'env_q' not in st.session_state or \
     st.session_state.current_seed = seed_input
        
 # --- 3. DISPLAY LEGEND (IN EXPANDER) ---
+                          
+st.sidebar.divider()  # Optional separator
+st.sidebar.markdown("### 🗺️ Object Legend")
 
-with st.sidebar.expander("🗺️ Open Color Legend", expanded=False):
-    if 'display_color_legend_python' in globals():
-        display_color_legend_python()
-    else:
-        st.warning("Legend function not found.")
+if 'display_color_legend_python' in globals():
+    display_color_legend_python()
+else:
+    st.warning("Legend function not found.")
         
 # --- 4. MAIN DASHBOARD ---
 col1, col2 = st.columns(2)
