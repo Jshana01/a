@@ -786,11 +786,26 @@ def render_grid(env, path, title_color="black"):
             for r, c in coords:
                 x, y = transform(r, c)
                 
+                def add_png(ax, png_path, x, y, zoom=0.035, z=3):
+                img = plt.imread(png_path)
+                 ab = AnnotationBbox(OffsetImage(img, zoom=zoom), (x, y), frameon=False, zorder=z)
+                ax.add_artist(ab)
+
                 # Draw colored rectangle (base)
                 rect = plt.Rectangle((x - 0.5, y - 0.5), 1, 1, 
                                      facecolor=color, alpha=alpha,
                                      edgecolor="none", linewidth=0)
                 ax.add_patch(rect)
+
+                # ✅ PNG for parked cars (grey grids)
+                if obj_type == "parked_car":
+                    add_png(ax, "assets/parked_car.png", x, y, zoom=0.040, z=4)
+                    continue
+
+                if obj_type == "bush":
+                    add_png(ax, "assets/deco.png", x, y, zoom=0.045, z=4)
+                    continue
+
 
                 # B. Draw Icon/Logo (Overlay)
                 if obj_type in icon_map:
@@ -800,6 +815,9 @@ def render_grid(env, path, title_color="black"):
                             ha='center', va='center', 
                             fontsize=f_size, color=txt_color, 
                             fontweight='bold', zorder=2)
+
+            
+
 
     # 6. Draw Moving Humans
     if hasattr(env, "moving_humans"):
@@ -850,7 +868,7 @@ def render_grid(env, path, title_color="black"):
     
     # Rotate car icon based on direction (using arrows or just a static car)
     # Since we can't easily rotate emoji text, we use a generic Front-Facing Car
-    ax.text(ax_p, ay_p, "🏎️", ha='center', va='center', fontsize=16, zorder=10)
+    # ax.text(ax_p, ay_p, "🏎️", ha='center', va='center', fontsize=16, zorder=10)
 
     # 10. Grid Lines
     ax.set_xlim(-0.5, cols - 0.5)
