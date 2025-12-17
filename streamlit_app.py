@@ -761,7 +761,7 @@ def render_grid(env, path, title_color="black"):
     }
 
     icon_map = {
-        "bush":           "b.png",      # Green flower logo
+        "bush":           ("✿", "white", 10),      # Green flower logo
         "oku":            ("♿", "white", 10),      # Blue wheelchair logo
         "wall":           ("WALL", "white", 5),     # Word "WALL"
         "guard_house":    ("⛉", "white", 12),      # Guard logo
